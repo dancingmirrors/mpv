@@ -153,7 +153,7 @@ check("posix*",
       fn        = lambda: check_cc(include = "unistd.h",
                                    defined = "_POSIX_VERSION"),
       sources   = ["osdep/language-posix.c",
-                   "osdep/polldev.c",
+                   "osdep/poll_wrapper.c",
                    "sub/filter_regex.c"])
 check("development environment",
       deps_any  = ["posix", "mingw"],
