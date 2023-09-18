@@ -43,6 +43,7 @@
 #include "misc/ctype.h"
 #include "options/m_config.h"
 #include "osdep/io.h"
+#include "osdep/poll_wrapper.h"
 #include "osdep/timer.h"
 #include "misc/ctype.h"
 #include "present_sync.h"
@@ -286,12 +287,12 @@ static void vt_switcher_destroy(struct vt_switcher *s)
     close(vt_switcher_pipe[1]);
 }
 
-static void vt_switcher_poll(struct vt_switcher *s, int timeout_ms)
+static void vt_switcher_poll(struct vt_switcher *s, int timeout_ns)
 {
     struct pollfd fds[1] = {
         { .events = POLLIN, .fd = vt_switcher_pipe[0] },
     };
-    poll(fds, 1, timeout_ms);
+    mp_poll(fds, 1, timeout_ns);
     if (!fds[0].revents)
         return;
 
@@ -1333,8 +1334,8 @@ void vo_drm_wait_events(struct vo *vo, int64_t until_time_ns)
     struct vo_drm_state *drm = vo->drm;
     if (drm->vt_switcher_active) {
         int64_t wait_ns = until_time_ns - mp_time_ns();
-        int timeout_ms = MPCLAMP(wait_ns / 1e6, 1, 10000);
-        vt_switcher_poll(&drm->vt_switcher, timeout_ms);
+        int64_t timeout_ns = MPCLAMP(wait_ns, 1e6, 1e10);
+        vt_switcher_poll(&drm->vt_switcher, timeout_ns);
     } else {
         vo_wait_default(vo, until_time_ns);
     }
