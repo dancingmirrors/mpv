@@ -224,12 +224,11 @@ check("atomics",
       required  = "Required.")
 check("librt",
       fn        = lambda: check_cc(link = "-lrt"))
-# FIXME
+# FIXME: FreeBSD's system iconv is insufficient, pkg install iconv
 check("iconv*",
-      default   = False,
-      fn        = lambda: check_cc(include = "iconv.h", link = [],
+      fn        = lambda: check_cc(include = "/usr/local/include/iconv.h", link = [],
                                    expr = "iconv_open(0, 0);") or
-                          check_cc(include = "iconv.h", link = "-liconv",
+                          check_cc(include = "/usr/local/include/iconv.h", link = "-liconv",
                                    expr = "iconv_open(0, 0);"))
 check("dos-paths*",
       deps      = "win32")
