@@ -21,9 +21,12 @@
 #include <libplacebo/colorspace.h>
 #include <libplacebo/renderer.h>
 #include <libplacebo/shaders/lut.h>
-#include <libplacebo/shaders/icc.h>
 #include <libplacebo/utils/libav.h>
 #include <libplacebo/utils/frame_queue.h>
+
+#ifdef PL_HAVE_LCMS
+#include <libplacebo/shaders/icc.h>
+#endif
 
 #include "config.h"
 #include "common/common.h"
@@ -84,11 +87,6 @@ struct user_lut {
     struct pl_custom_lut *lut;
 };
 
-struct frame_info {
-    int count;
-    struct pl_dispatch_info info[VO_PASS_PERF_MAX];
-};
-
 struct priv {
     struct mp_log *log;
     struct mpv_global *global;
@@ -136,9 +134,11 @@ struct priv {
     const struct pl_filter_config *frame_mixer;
     enum mp_csp_levels output_levels;
 
+#ifdef PL_HAVE_LCMS
     struct pl_icc_params icc;
     struct pl_icc_profile icc_profile;
     char *icc_path;
+#endif
 
     struct user_lut image_lut;
     struct user_lut target_lut;
@@ -149,8 +149,7 @@ struct priv {
     int num_user_hooks;
 
     // Performance data of last frame
-    struct frame_info perf_fresh;
-    struct frame_info perf_redraw;
+    struct voctrl_performance_data perf;
 
     bool delayed_peak;
     bool inter_preserve;
@@ -754,15 +753,28 @@ static void info_callback(void *priv, const struct pl_render_info *info)
     if (info->index >= VO_PASS_PERF_MAX)
         return; // silently ignore clipped passes, whatever
 
-    struct frame_info *frame;
+    struct mp_frame_perf *frame;
     switch (info->stage) {
-    case PL_RENDER_STAGE_FRAME: frame = &p->perf_fresh; break;
-    case PL_RENDER_STAGE_BLEND: frame = &p->perf_redraw; break;
+    case PL_RENDER_STAGE_FRAME: frame = &p->perf.fresh; break;
+    case PL_RENDER_STAGE_BLEND: frame = &p->perf.redraw; break;
     default: abort();
     }
 
-    frame->count = info->index + 1;
-    pl_dispatch_info_move(&frame->info[info->index], info->pass);
+    int index = info->index;
+    struct mp_pass_perf *perf = &frame->perf[index];
+    const struct pl_dispatch_info *pass = info->pass;
+    static_assert(VO_PERF_SAMPLE_COUNT >= MP_ARRAY_SIZE(pass->samples), "");
+    assert(pass->num_samples <= MP_ARRAY_SIZE(pass->samples));
+
+    perf->count = MPMIN(pass->num_samples, VO_PERF_SAMPLE_COUNT);
+    memcpy(perf->samples, pass->samples, perf->count * sizeof(pass->samples[0]));
+    perf->last = pass->last;
+    perf->peak = pass->peak;
+    perf->avg = pass->average;
+
+    strncpy(frame->desc[index], pass->shader->description, sizeof(frame->desc[index]) - 1);
+    frame->desc[index][sizeof(frame->desc[index]) - 1] = '\0';
+    frame->count = index + 1;
 }
 
 static void update_options(struct vo *vo)
@@ -839,6 +851,7 @@ static void apply_target_options(struct priv *p, struct pl_frame *target)
         tbits->sample_depth = opts->dither_depth;
     }
 
+#ifdef PL_HAVE_LCMS
     target->profile = p->icc_profile;
 
     if (opts->icc_opts->icc_use_luma) {
@@ -850,6 +863,7 @@ static void apply_target_options(struct priv *p, struct pl_frame *target)
         if (!p->icc.max_luma)
             p->icc.max_luma = pl_icc_default_params.max_luma;
     }
+#endif
 }
 
 static void apply_crop(struct pl_frame *frame, struct mp_rect crop,
@@ -1132,6 +1146,8 @@ static int reconfig(struct vo *vo, struct mp_image_params *params)
 
 static bool update_auto_profile(struct priv *p, int *events)
 {
+#ifdef PL_HAVE_LCMS
+
     const struct gl_video_opts *opts = p->opts_cache->opts;
     if (!opts->icc_opts || !opts->icc_opts->profile_auto || p->icc_path)
         return false;
@@ -1148,11 +1164,13 @@ static bool update_auto_profile(struct priv *p, int *events)
         }
 
         talloc_free((void *) p->icc_profile.data);
-        p->icc_profile.data = talloc_steal(p, icc.start);
+        p->icc_profile.data = icc.start;
         p->icc_profile.len = icc.len;
         pl_icc_profile_compute_signature(&p->icc_profile);
         return true;
     }
+
+#endif // PL_HAVE_LCMS
 
     return false;
 }
@@ -1192,19 +1210,10 @@ static void video_screenshot(struct vo *vo, struct voctrl_screenshot *args)
     struct mp_rect src = p->src, dst = p->dst;
     struct mp_osd_res osd = p->osd_res;
     if (!args->scaled) {
-        int w, h;
-        mp_image_params_get_dsize(&mpi->params, &w, &h);
-        if (w < 1 || h < 1)
-            return;
-
-        int src_w = mpi->params.w;
-        int src_h = mpi->params.h;
-        if (mpi->params.rotate % 180 == 90) {
+        int w = mpi->params.w, h = mpi->params.h;
+        if (mpi->params.rotate % 180 == 90)
             MPSWAP(int, w, h);
-            MPSWAP(int, src_w, src_h);
-        }
-        src = (struct mp_rect) {0, 0, src_w, src_h};
-        dst = (struct mp_rect) {0, 0, w, h};
+        src = dst = (struct mp_rect) {0, 0, w, h};
         osd = (struct mp_osd_res) {
             .display_par = 1.0,
             .w = w,
@@ -1300,30 +1309,6 @@ done:
     pl_tex_destroy(gpu, &fbo);
 }
 
-static inline void copy_frame_info_to_mp(struct frame_info *pl,
-                                         struct mp_frame_perf *mp) {
-    static_assert(MP_ARRAY_SIZE(pl->info) == MP_ARRAY_SIZE(mp->perf), "");
-    assert(pl->count <= VO_PASS_PERF_MAX);
-    mp->count = MPMIN(pl->count, VO_PASS_PERF_MAX);
-
-    for (int i = 0; i < mp->count; ++i) {
-        const struct pl_dispatch_info *pass = &pl->info[i];
-
-        static_assert(VO_PERF_SAMPLE_COUNT >= MP_ARRAY_SIZE(pass->samples), "");
-        assert(pass->num_samples <= MP_ARRAY_SIZE(pass->samples));
-
-        struct mp_pass_perf *perf = &mp->perf[i];
-        perf->count = MPMIN(pass->num_samples, VO_PERF_SAMPLE_COUNT);
-        memcpy(perf->samples, pass->samples, perf->count * sizeof(pass->samples[0]));
-        perf->last = pass->last;
-        perf->peak = pass->peak;
-        perf->avg = pass->average;
-
-        strncpy(mp->desc[i], pass->shader->description, sizeof(mp->desc[i]) - 1);
-        mp->desc[i][sizeof(mp->desc[i]) - 1] = '\0';
-    }
-}
-
 static int control(struct vo *vo, uint32_t request, void *data)
 {
     struct priv *p = vo->priv;
@@ -1365,12 +1350,9 @@ static int control(struct vo *vo, uint32_t request, void *data)
         p->want_reset = true;
         return VO_TRUE;
 
-    case VOCTRL_PERFORMANCE_DATA: {
-        struct voctrl_performance_data *perf = data;
-        copy_frame_info_to_mp(&p->perf_fresh, &perf->fresh);
-        copy_frame_info_to_mp(&p->perf_redraw, &perf->redraw);
+    case VOCTRL_PERFORMANCE_DATA:
+        *(struct voctrl_performance_data *) data = p->perf;
         return true;
-    }
 
     case VOCTRL_SCREENSHOT:
         video_screenshot(vo, data);
@@ -1475,11 +1457,6 @@ static void uninit(struct vo *vo)
     }
 
     pl_renderer_destroy(&p->rr);
-
-    for (int i = 0; i < VO_PASS_PERF_MAX; ++i) {
-        pl_shader_info_deref(&p->perf_fresh.info[i].shader);
-        pl_shader_info_deref(&p->perf_redraw.info[i].shader);
-    }
 
     p->ra_ctx = NULL;
     p->pllog = NULL;
@@ -1678,6 +1655,8 @@ static const struct pl_hook *load_hook(struct priv *p, const char *path)
     return hook;
 }
 
+#ifdef PL_HAVE_LCMS
+
 static stream_t *icc_open_cache(struct priv *p, uint64_t sig, int flags)
 {
     const struct gl_video_opts *opts = p->opts_cache->opts;
@@ -1742,10 +1721,14 @@ static bool icc_load(void *priv, uint64_t sig, uint8_t *cache, size_t size)
     return len == size;
 }
 
+#endif // PL_HAVE_LCMS
+
 static void update_icc_opts(struct priv *p, const struct mp_icc_opts *opts)
 {
     if (!opts)
         return;
+
+#ifdef PL_HAVE_LCMS
 
     if (!opts->profile_auto && !p->icc_path && p->icc_profile.len) {
         // Un-set any auto-loaded profiles if icc-profile-auto was disabled
@@ -1790,6 +1773,8 @@ static void update_icc_opts(struct priv *p, const struct mp_icc_opts *opts)
     // Update cached path
     talloc_free(p->icc_path);
     p->icc_path = talloc_strdup(p, opts->profile);
+
+#endif // PL_HAVE_LCMS
 }
 
 static void update_lut(struct priv *p, struct user_lut *lut)
