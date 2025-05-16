@@ -851,6 +851,8 @@ static void apply_target_contrast(struct priv *p, struct pl_color_space *color)
 
 static void apply_target_options(struct priv *p, struct pl_frame *target)
 {
+    pl_options pars = p->pars;
+
     update_lut(p, &p->target_lut);
     target->lut = p->target_lut.lut;
     target->lut_type = p->target_lut.type;
@@ -875,6 +877,16 @@ static void apply_target_options(struct priv *p, struct pl_frame *target)
     }
 
     target->profile = p->icc_profile;
+
+    if (opts->icc_opts->icc_use_luma) {
+        // Use detected luminance
+        pars->icc_params.max_luma = 0;
+    } else {
+        // Use HDR levels if available, fall back to default luminance
+        pars->icc_params.max_luma = target->color.hdr.max_luma;
+        if (!pars->icc_params.max_luma)
+            pars->icc_params.max_luma = pl_icc_default_params.max_luma;
+    }
 }
 
 static void apply_crop(struct pl_frame *frame, struct mp_rect crop,
@@ -1552,6 +1564,15 @@ static void uninit(struct vo *vo)
 
     char *cache_file = get_cache_file(p);
     if (cache_file && p->rr) {
+        FILE *cache = fopen(cache_file, "wb");
+        if (cache) {
+            size_t size = pl_renderer_save(p->rr, NULL);
+            uint8_t *buf = talloc_size(NULL, size);
+            pl_renderer_save(p->rr, buf);
+            fwrite(buf, size, 1, cache);
+            talloc_free(buf);
+            fclose(cache);
+        }
         talloc_free(cache_file);
     }
 
@@ -1614,6 +1635,7 @@ static int preinit(struct vo *vo)
     if (cache_file) {
         if (stat(cache_file, &(struct stat){0}) == 0) {
             bstr c = stream_read_file(cache_file, p, vo->global, 1000000000);
+            pl_renderer_load(p->rr, c.start);
             talloc_free(c.start);
         }
         talloc_free(cache_file);
@@ -1761,8 +1783,73 @@ static const struct pl_hook *load_hook(struct priv *p, const char *path)
     return hook;
 }
 
+static stream_t *icc_open_cache(struct priv *p, uint64_t sig, int flags)
+{
+    const struct gl_video_opts *opts = p->opts_cache->opts;
+    if (!opts->icc_opts->cache)
+        return NULL;
+
+    char cache_name[16+1];
+    for (int i = 0; i < 16; i++) {
+        cache_name[i] = "0123456789ABCDEF"[sig & 0xF];
+        sig >>= 4;
+    }
+    cache_name[16] = '\0';
+
+    char *cache_dir = opts->icc_opts->cache_dir;
+    if (cache_dir && cache_dir[0]) {
+        cache_dir = mp_get_user_path(NULL, p->global, cache_dir);
+    } else {
+        cache_dir = mp_find_user_file(NULL, p->global, "cache", "");
+    }
+
+    if (!cache_dir || !cache_dir[0])
+        return NULL;
+
+    char *path = mp_path_join(NULL, cache_dir, cache_name);
+    stream_t *stream = NULL;
+    if (flags & STREAM_WRITE) {
+        mp_mkdirp(cache_dir);
+    } else {
+        // Exit silently if the file does not exist
+        if (stat(path, &(struct stat) {0}) < 0)
+            goto done;
+    }
+
+    flags |= STREAM_ORIGIN_DIRECT | STREAM_LOCAL_FS_ONLY | STREAM_LESS_NOISE;
+    stream = stream_create(path, flags, NULL, p->global);
+    // fall through
+done:
+    talloc_free(cache_dir);
+    talloc_free(path);
+    return stream;
+}
+
+static void icc_save(void *priv, uint64_t sig, const uint8_t *cache, size_t size)
+{
+    struct priv *p = priv;
+    stream_t *s = icc_open_cache(p, sig, STREAM_WRITE);
+    if (!s)
+        return;
+    stream_write_buffer(s, (void *) cache, size);
+    free_stream(s);
+}
+
+static bool icc_load(void *priv, uint64_t sig, uint8_t *cache, size_t size)
+{
+    struct priv *p = priv;
+    stream_t *s = icc_open_cache(p, sig, STREAM_READ);
+    if (!s)
+        return false;
+
+    int len = stream_read(s, cache, size);
+    free_stream(s);
+    return len == size;
+}
+
 static void update_icc_opts(struct priv *p, const struct mp_icc_opts *opts)
 {
+    pl_options pars = p->pars;
     if (!opts)
         return;
 
@@ -1774,6 +1861,13 @@ static void update_icc_opts(struct priv *p, const struct mp_icc_opts *opts)
 
     int s_r = 0, s_g = 0, s_b = 0;
     gl_parse_3dlut_size(opts->size_str, &s_r, &s_g, &s_b);
+    pars->icc_params.intent = opts->intent;
+    pars->icc_params.size_r = s_r;
+    pars->icc_params.size_g = s_g;
+    pars->icc_params.size_b = s_b;
+    pars->icc_params.cache_priv = p;
+    pars->icc_params.cache_save = icc_save;
+    pars->icc_params.cache_load = icc_load;
 
     if (!opts->profile || !opts->profile[0]) {
         // No profile enabled, un-load any existing profiles
@@ -1898,7 +1992,9 @@ static void update_render_options(struct vo *vo)
     struct priv *p = vo->priv;
     pl_options pars = p->pars;
     const struct gl_video_opts *opts = p->opts_cache->opts;
+    pars->params.lut_entries = 1 << opts->scaler_lut_size;
     pars->params.antiringing_strength = opts->scaler[0].antiring;
+    pars->params.polar_cutoff = opts->scaler[0].cutoff;
     pars->params.background_color[0] = opts->background.r / 255.0;
     pars->params.background_color[1] = opts->background.g / 255.0;
     pars->params.background_color[2] = opts->background.b / 255.0;
@@ -1906,6 +2002,7 @@ static void update_render_options(struct vo *vo)
     pars->params.skip_anti_aliasing = !opts->correct_downscaling;
     pars->params.disable_linear_scaling = !opts->linear_downscaling && !opts->linear_upscaling;
     pars->params.disable_fbos = opts->dumb_mode == 1;
+    pars->params.blend_against_tiles = opts->alpha_mode == ALPHA_BLEND_TILES;
     pars->params.corner_rounding = p->corner_rounding;
 
     // Map scaler options as best we can
@@ -1966,6 +2063,9 @@ static void update_render_options(struct vo *vo)
     };
 
     pars->color_map_params.tone_mapping_function = tone_map_funs[opts->tone_map.curve];
+    pars->color_map_params.tone_mapping_param = opts->tone_map.curve_param;
+    if (isnan(pars->color_map_params.tone_mapping_param)) // vo_gpu compatibility
+        pars->color_map_params.tone_mapping_param = 0.0;
     pars->color_map_params.inverse_tone_mapping = opts->tone_map.inverse;
     pars->color_map_params.contrast_recovery = opts->tone_map.contrast_recovery;
     pars->color_map_params.visualize_lut = opts->tone_map.visualize;
