@@ -3332,13 +3332,6 @@ static int mp_property_libass_version(void *ctx, struct m_property *prop,
     return m_property_int64_ro(action, arg, ass_library_version());
 }
 
-static int mp_property_platform(void *ctx, struct m_property *prop,
-                                int action, void *arg)
-{
-    // FIXME return m_property_strdup_ro(action, arg, PLATFORM);
-    return m_property_strdup_ro(action, arg, 0);
-}
-
 static int mp_property_alias(void *ctx, struct m_property *prop,
                              int action, void *arg)
 {
@@ -3968,7 +3961,6 @@ static const struct m_property mp_properties_base[] = {
     {"mpv-configuration", mp_property_configuration},
     {"ffmpeg-version", mp_property_ffmpeg},
     {"libass-version", mp_property_libass_version},
-    {"platform", mp_property_platform},
 
     {"options", mp_property_options},
     {"file-local-options", mp_property_local_options},
