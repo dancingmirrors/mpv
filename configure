@@ -5,7 +5,6 @@
 #- Windows console wrapper thing
 #- OS X testing
 #- Swift stuff
-#- RPI stuff
 
 import os
 from TOOLS.configure_common import *
@@ -658,12 +657,6 @@ check("-d3d11*",
                    "video/out/d3d11/ra_d3d11.c",
                    "video/out/gpu/d3d11_helpers.c"])
 
-check("-rpi*",
-      # TODO: or tell them to fuck off
-      fn        = lambda: False,
-      sources   = ["video/out/opengl/context_rpi.c",
-                   "video/out/opengl/hwdec_rpi.c",
-                   "video/out/vo_rpi.c"])
 check("-ios-gl*",
       desc      = "iOS OpenGL ES hardware decoding interop support",
       fn        = lambda: check_cc(include = "OpenGLES/ES3/glext.h",
@@ -682,7 +675,7 @@ check("-plain-gl*",
 check("-gl*",
       desc      = "OpenGL context support",
       deps_any  = ["gl-cocoa", "gl-x11", "egl-x11", "egl-drm", "egl-android",
-                   "gl-win32", "gl-wayland", "rpi", "plain-gl"],
+                   "gl-win32", "gl-wayland", "plain-gl"],
       required  = "No OpenGL video output found or enabled. " +
                   "Aborting. If you really mean to compile without OpenGL " +
                   "video outputs use --disable-gl.",
@@ -694,7 +687,7 @@ check("-gl*",
 
 check("egl-helpers*",
       desc      = "EGL helper functions",
-      deps_any  = ["egl-x11", "rpi", "gl-wayland", "egl-drm",
+      deps_any  = ["egl-x11", "gl-wayland", "egl-drm",
                    "egl-angle-win32", "egl-android"],
       sources   = ["video/filter/vf_gpu.c", # doesn't really belong here
                    "video/out/opengl/egl_helpers.c"]),
@@ -735,14 +728,6 @@ check("-cuda-interop-vulkan",
       desc      = "CUDA Vulkan interop",
       deps      = ["cuda-interop", "vulkan"],
       sources   = "video/out/hwdec/hwdec_cuda_vk.c")
-
-check("-rpi-mmal*",
-      desc      = "Raspberry Pi MMAL hwaccel",
-      deps      = "rpi",
-      fn        = lambda: check_pkg_config("mmal") or
-                          check_pkg_config("/opt/vc/lib/pkgconfig/mmal.pc"),
-      sources   = ["video/out/opengl/hwdec_rpi.c",
-                   "video/out/vo_rpi.c"])
 
 check(deps_any  = ["gl-x11", "egl-x11"],
       sources   = ["video/out/opengl/oml_sync.c"])
