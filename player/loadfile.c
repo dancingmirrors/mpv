@@ -248,13 +248,13 @@ static void print_stream(struct MPContext *mpctx, struct track *t)
     const char *langopt = "?";
     switch (t->type) {
     case STREAM_VIDEO:
-        tname = "Video"; selopt = "vid"; langopt = "vlang";
+        tname = "Video:"; selopt = "vid"; langopt = "vlang";
         break;
     case STREAM_AUDIO:
-        tname = "Audio"; selopt = "aid"; langopt = "alang";
+        tname = "Audio:"; selopt = "aid"; langopt = "alang";
         break;
     case STREAM_SUB:
-        tname = "Subs"; selopt = "sid"; langopt = "slang";
+        tname = "Subs:"; selopt = "sid"; langopt = "slang";
         break;
     }
     char b[2048] = {0};
