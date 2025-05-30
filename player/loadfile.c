@@ -238,6 +238,7 @@ static void uninit_demuxer(struct MPContext *mpctx)
 }
 
 #define APPEND(s, ...) mp_snprintf_cat(s, sizeof(s), __VA_ARGS__)
+#define FILL(s, n) mp_snprintf_cat(s, sizeof(s), "%*s", n, "")
 
 static void print_stream(struct MPContext *mpctx, struct track *t)
 {
@@ -247,7 +248,7 @@ static void print_stream(struct MPContext *mpctx, struct track *t)
     const char *langopt = "?";
     switch (t->type) {
     case STREAM_VIDEO:
-        tname = "Video"; selopt = "vid"; langopt = NULL;
+        tname = "Video"; selopt = "vid"; langopt = "vlang";
         break;
     case STREAM_AUDIO:
         tname = "Audio"; selopt = "aid"; langopt = "alang";
@@ -257,16 +258,23 @@ static void print_stream(struct MPContext *mpctx, struct track *t)
         break;
     }
     char b[2048] = {0};
+
     bool forced_only = false;
-    if (t->type == STREAM_SUB) {
-        int forced_opt = mpctx->opts->subs_rend->forced_subs_only;
-        if (forced_opt == 1 || (forced_opt && t->forced_only_def))
-            forced_only = t->selected;
+    bool tracks_have_lang = false;
+    for (int n = 0; n < mpctx->num_tracks; n++) {
+        if (mpctx->tracks[n]->lang) {
+            tracks_have_lang = true;
+            break;
+        }
     }
-    APPEND(b, " %3s %-5s", t->selected ? (forced_only ? "(*)" : "(+)") : "", tname);
-    APPEND(b, " --%s=%d", selopt, t->user_tid);
-    if (t->lang && langopt)
-        APPEND(b, " --%s=%s", langopt, t->lang);
+
+    APPEND(b, "%-5s --%s=%-2d", tname, selopt, t->user_tid);
+    if (t->lang) {
+        APPEND(b, " --%s=%-2s", langopt, t->lang);
+    } else if (tracks_have_lang) {
+        FILL(b, 16);
+    }
+
     if (t->default_track)
         APPEND(b, " (*)");
     if (t->forced_track)
