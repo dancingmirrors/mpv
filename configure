@@ -810,6 +810,7 @@ add_sources(
     "input/event.c",
     "input/input.c",
     "input/ipc.c",
+    "input/ipc-dummy.c",
     "input/keycodes.c",
     "misc/bstr.c",
     "misc/charset_conv.c",
@@ -832,6 +833,8 @@ add_sources(
     "options/path.c",
     "osdep/io.c",
     "osdep/subprocess.c",
+    "osdep/subprocess-dummy.c",
+    "osdep/terminal-dummy.c",
     "osdep/threads.c",
     "osdep/timer.c",
     "player/audio.c",
@@ -925,27 +928,9 @@ if is_running():
         )
 
     pick_first_matching_dep(
-        ("_",                   "osdep/terminal-dummy.c"),
-        ("posix",               "osdep/terminal-unix.c"),
-        ("win32-desktop",       "osdep/terminal-win.c"),
-    )
-
-    pick_first_matching_dep(
         ("win32",               "osdep/timer-win2.c"),
         ("osx",                 "osdep/timer-darwin.c"),
         ("_",                   "osdep/timer-linux.c"),
-    )
-
-    pick_first_matching_dep(
-        ("_",                   "input/ipc-dummy.c"),
-        ("posix",               "input/ipc-unix.c"),
-        ("win32-desktop",       "input/ipc-win.c"),
-    )
-
-    pick_first_matching_dep(
-        ("_",                   "osdep/subprocess-dummy.c"),
-        ("posix",               "osdep/subprocess-posix.c"),
-        ("win32-desktop",       "osdep/subprocess-win.c"),
     )
 
 finish()
