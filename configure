@@ -343,13 +343,6 @@ check("-coreaudio*",
                    "audio/out/ao_coreaudio_exclusive.c",
                    "audio/out/ao_coreaudio_properties.c",
                    "audio/out/ao_coreaudio_utils.c"])
-check("-audiounit*",
-      desc      = "AudioUnit output for iOS",
-      # TODO: missing frameworks: "Foundation", "AudioToolbox"
-      deps      = "osx",
-      sources   = ["audio/out/ao_audiounit.m",
-                   "audio/out/ao_coreaudio_chmap.c",
-                   "audio/out/ao_coreaudio_utils.c"])
 check("-wasapi*",
       deps      = "win32",
       sources   = ["audio/out/ao_wasapi.c",
@@ -630,12 +623,6 @@ check("-rpi*",
                    "video/out/opengl/hwdec_rpi.c",
                    "video/out/vo_rpi.c"])
 
-check("-ios-gl*",
-      desc      = "iOS OpenGL ES hardware decoding interop support",
-      fn        = lambda: check_cc(include = "OpenGLES/ES3/glext.h",
-                                   expr = "(void)GL_RGB32F;"),  # arbitrary OpenGL ES 3.0 symbol
-      sources   = "video/out/opengl/hwdec_ios.m")
-
 check("-egl-android*",
       desc      = "Android EGL support",
       deps      = "android",
@@ -663,7 +650,7 @@ check("egl-helpers*",
 
 check("videotoolbox-hwaccel*",
       desc      = "libavcodec videotoolbox hwaccel",
-      deps_any  = ["gl-cocoa", "ios-gl"])
+      deps      = "gl-cocoa")
 check("-videotoolbox-gl*",
       desc      = "Videotoolbox with OpenGL",
       deps      = ["gl-cocoa", "videotoolbox-hwaccel"],
