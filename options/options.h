@@ -349,6 +349,7 @@ typedef struct MPOpts {
     struct cocoa_opts *cocoa_opts;
     struct macos_opts *macos_opts;
     struct drm_opts *drm_opts;
+    struct wayland_opts *wayland_opts;
     struct dvd_opts *dvd_opts;
     struct vaapi_opts *vaapi_opts;
     struct sws_opts *sws_opts;

@@ -14,6 +14,7 @@ programs_info = [
     ("CC",          "cc"),
     ("PKG_CONFIG",  "pkg-config"),
     ("WINDRES",     "windres"),
+    ("WAYSCAN",     "wayland-scanner"),
 ]
 
 install_paths_info = [

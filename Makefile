@@ -64,3 +64,30 @@ $(BUILD)/player/lua.o: $(BUILD)/generated/player/lua/defaults.lua.inc \
 
 $(BUILD)/osdep/macosx_application.m $(BUILD)/video/out/cocoa_common.m: \
     $(BUILD)/generated/TOOLS/osxbundle/mpv.app/Contents/Resources/icon.icns.inc
+
+# $(1): path prefix to the protocol, $(1)/$(2).xml is the full path.
+# $(2): the name of the protocol, without path or extension
+define generate_wayland =
+$$(BUILD)/video/out/wayland_common.o \
+$$(BUILD)/video/out/opengl/context_wayland.o \
+: $$(BUILD)/generated/wayland/$(2).c $$(BUILD)/generated/wayland/$(2).h
+$$(BUILD)/generated/wayland/$(2).c: $(1)/$(2).xml
+	$$(LOG) "WAYSHC" $$@
+	$$(Q) mkdir -p $$(@D)
+	$$(Q) $$(WAYSCAN) private-code $$< $$@
+$$(BUILD)/generated/wayland/$(2).h: $(1)/$(2).xml
+	$$(LOG) "WAYSHH" $$@
+	$$(Q) mkdir -p $$(@D)
+	$$(Q) $$(WAYSCAN) client-header $$< $$@
+endef
+
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/unstable/idle-inhibit/,idle-inhibit-unstable-v1))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/stable/presentation-time/,presentation-time))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/stable/xdg-shell/,xdg-shell))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/unstable/xdg-decoration/,xdg-decoration-unstable-v1))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/stable/viewporter/,viewporter))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/unstable/linux-dmabuf/,linux-dmabuf-unstable-v1))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/staging/fractional-scale/,fractional-scale-v1))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/staging/cursor-shape/,cursor-shape-v1))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/stable/tablet/,tablet-v2))
+$(eval $(call generate_wayland,$(WL_PROTO_DIR)/staging/xdg-activation/,xdg-activation-v1))

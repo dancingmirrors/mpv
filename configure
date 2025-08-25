@@ -374,6 +374,43 @@ check(deps      = ["drm", "drmprime"],
 check("gbm",
       fn        = lambda: check_pkg_config("gbm"))
 
+def check_wayland_protos():
+    data = get_pkg_config_variable("wayland-protocols", "pkgdatadir")
+    if data is None:
+        return False
+    add_config_mak_var("WL_PROTO_DIR", data)
+    return True
+check("-wayland*",
+      default   = False,
+      fn        = lambda: check_wayland_protos() and
+                          check_cc(include = "linux/input-event-codes.h",
+                                   link = []) and
+                          check_program("WAYSCAN") and
+                          check_pkg_config("wayland-client    >= 1.21.0",
+                                           "wayland-cursor    >= 1.21.0",
+                                           "wayland-protocols >= 1.32.0",
+                                           "xkbcommon         >= 0.3.0"),
+      sources   = ["video/out/wayland_common.c",
+                   "$(BUILD)/generated/wayland/idle-inhibit-unstable-v1.c",
+                   "$(BUILD)/generated/wayland/presentation-time.c",
+                   "$(BUILD)/generated/wayland/xdg-shell.c",
+                   "$(BUILD)/generated/wayland/fractional-scale-v1.c",
+                   "$(BUILD)/generated/wayland/cursor-shape-v1.c",
+                   "$(BUILD)/generated/wayland/tablet-v2.c",
+                   "$(BUILD)/generated/wayland/xdg-decoration-unstable-v1.c",
+                   "$(BUILD)/generated/wayland/xdg-activation-v1.c",
+                   "$(BUILD)/generated/wayland/viewporter.c",
+                   "$(BUILD)/generated/wayland/linux-dmabuf-unstable-v1.c",
+                   "video/out/hwdec/dmabuf_interop_wl.c",
+                   "video/out/wldmabuf/context_wldmabuf.c",
+                   "video/out/wldmabuf/ra_wldmabuf.c"])
+check("memfd_create*",
+      desc      = "Linux's memfd_create()",
+      deps      = "wayland",
+      fn        = lambda: check_cc(include = "sys/mman.h", link = [],
+                                   expr = "memfd_create(0, MFD_CLOEXEC | MFD_ALLOW_SEALING);"),
+      sources   = "video/out/vo_wlshm.c")
+
 check("-x11*",
       desc      = "X11",
       deps      = "gpl",
@@ -411,6 +448,11 @@ check("-egl-drm*",
       desc      = "OpenGL DRM EGL Backend",
       deps      = ["drm", "gbm", "egl"],
       sources   = "video/out/opengl/context_drm_egl.c")
+check("-gl-wayland*",
+      desc      = "OpenGL Wayland Backend",
+      deps      =  ["wayland", "egl"],
+      fn        = lambda: check_pkg_config("wayland-egl >= 9.0.0"),
+      sources   = "video/out/opengl/context_wayland.c")
 check("-gl-win32*",
       desc      = "OpenGL Win32 Backend",
       deps      = "win32-desktop",
@@ -468,6 +510,11 @@ check("-vaapi_x11*",
       deps      = ["vaapi", "x11"],
       fn        = lambda: check_pkg_config("libva-x11 >= 0.36.0"))
 check(deps      = ["vaapi_x11", "gpl"])
+check("-vaapi-wayland*",
+      desc      = "VA-API (Wayland support)",
+      deps      = ["vaapi", "gl-wayland"],
+      fn        = lambda: check_pkg_config("libva-wayland >= 0.36.0"),
+      sources   = "video/out/vo_dmabuf_wayland.c")
 check("-vaapi-drm*",
       desc      = "VA-API (DRM/EGL support)",
       deps      = ["vaapi", "egl-drm"],
@@ -480,7 +527,7 @@ check("-vaapi-x-egl*",
       deps      = ["vaapi_x11", "egl-x11"])
 check("-vaapi-egl*",
       desc      = "VA-API EGL",
-      deps      = "vaapi-x-egl",
+      deps_any  = ["vaapi-x-egl", "vaapi-wayland"],
       sources   = ["video/out/hwdec/hwdec_vaapi.c"])
 
 check("-dmabuf*",
@@ -553,7 +600,7 @@ check("-egl-android*",
 check("-gl*",
       desc      = "OpenGL context support",
       deps_any  = ["gl-cocoa", "gl-x11", "egl-x11", "egl-drm", "egl-android",
-                   "gl-win32", "rpi"],
+                   "gl-win32", "gl-wayland", "rpi"],
       required  = "No OpenGL video output found or enabled. " +
                   "Aborting. If you really mean to compile without OpenGL " +
                   "video outputs use --disable-gl.",
@@ -565,7 +612,7 @@ check("-gl*",
 
 check("egl-helpers*",
       desc      = "EGL helper functions",
-      deps_any  = ["egl-x11", "rpi", "egl-drm",
+      deps_any  = ["egl-x11", "rpi", "gl-wayland", "egl-drm",
                    "egl-angle-win32", "egl-android"],
       sources   = "video/out/opengl/egl_helpers.c"),
 

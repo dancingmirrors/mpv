@@ -48,8 +48,10 @@
 #include "osdep/threads.h"
 
 extern const struct vo_driver video_out_gpu;
+extern const struct vo_driver video_out_dmabuf_wayland;
 extern const struct vo_driver video_out_mediacodec_embed;
 extern const struct vo_driver video_out_direct3d;
+extern const struct vo_driver video_out_wlshm;
 extern const struct vo_driver video_out_x11;
 extern const struct vo_driver video_out_rpi;
 extern const struct vo_driver video_out_drm;
@@ -61,11 +63,17 @@ extern const struct vo_driver video_out_lavc;
 static const struct vo_driver *const video_out_drivers[] =
 {
     &video_out_gpu,
+#if HAVE_VAAPI_WAYLAND
+    &video_out_dmabuf_wayland,
+#endif
 #if HAVE_ANDROID
     &video_out_mediacodec_embed,
 #endif
 #if HAVE_DIRECT3D
     &video_out_direct3d,
+#endif
+#if HAVE_WAYLAND && HAVE_MEMFD_CREATE
+    &video_out_wlshm,
 #endif
 #if HAVE_X11
     &video_out_x11,

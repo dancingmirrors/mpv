@@ -90,6 +90,7 @@ extern const struct m_sub_options d3d11va_conf;
 extern const struct m_sub_options angle_conf;
 extern const struct m_sub_options cocoa_conf;
 extern const struct m_sub_options macos_conf;
+extern const struct m_sub_options wayland_conf;
 extern const struct m_sub_options vaapi_conf;
 extern const struct m_sub_options egl_conf;
 
@@ -127,6 +128,9 @@ static const m_option_t mp_vo_opt_list[] = {
     {"force-window-position", OPT_BOOL(force_window_position)},
 #if HAVE_X11
     {"x11-name", OPT_STRING(winname)},
+#endif
+#if HAVE_WAYLAND
+    {"wayland-app-id", OPT_STRING(appid)},
 #endif
     {"monitoraspect", OPT_FLOAT(force_monitor_aspect), M_RANGE(0.0, 9.0)},
     {"monitorpixelaspect", OPT_FLOAT(monitor_pixel_aspect),
@@ -811,6 +815,10 @@ static const m_option_t mp_opts[] = {
 
 #if HAVE_DRM
     {"", OPT_SUBSTRUCT(drm_opts, drm_conf)},
+#endif
+
+#if HAVE_WAYLAND
+    {"", OPT_SUBSTRUCT(wayland_opts, wayland_conf)},
 #endif
 
 #if HAVE_GL_WIN32

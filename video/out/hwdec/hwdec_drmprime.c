@@ -54,6 +54,9 @@ static void uninit(struct ra_hwdec *hw)
 const static dmabuf_interop_init interop_inits[] = {
 #if HAVE_DMABUF
     dmabuf_interop_gl_init,
+#if HAVE_WAYLAND
+    dmabuf_interop_wl_init,
+#endif
 #endif
     NULL
 };
@@ -86,9 +89,9 @@ static int init(struct ra_hwdec *hw)
     }
 
     /*
-     * The drm_params resource is not provided when using X11, but there are
-     * extensions that supposedly provide this information from the drivers.
-     * Not properly documented. Of course.
+     * The drm_params resource is not provided when using X11 or Wayland, but
+     * there are extensions that supposedly provide this information from the
+     * drivers. Not properly documented. Of course.
      */
     mpv_opengl_drm_params_v2 *params = ra_get_native_resource(hw->ra_ctx->ra,
                                                               "drm_params_v2");

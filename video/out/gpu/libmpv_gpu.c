@@ -28,6 +28,10 @@ static const struct native_resource_entry native_resource_map[] = {
         .name = "x11",
         .size = 0,
     },
+    [MPV_RENDER_PARAM_WL_DISPLAY] = {
+        .name = "wl",
+        .size = 0,
+    },
     [MPV_RENDER_PARAM_DRM_DRAW_SURFACE_SIZE] = {
         .name = "drm_draw_surface_size",
         .size = sizeof (mpv_opengl_drm_draw_surface_size),
