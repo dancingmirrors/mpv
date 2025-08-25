@@ -37,7 +37,6 @@ extern const struct ra_ctx_fns ra_ctx_glx;
 extern const struct ra_ctx_fns ra_ctx_x11_egl;
 extern const struct ra_ctx_fns ra_ctx_drm_egl;
 extern const struct ra_ctx_fns ra_ctx_cocoa;
-extern const struct ra_ctx_fns ra_ctx_wayland_egl;
 extern const struct ra_ctx_fns ra_ctx_wgl;
 extern const struct ra_ctx_fns ra_ctx_angle;
 extern const struct ra_ctx_fns ra_ctx_dxgl;
@@ -46,11 +45,6 @@ extern const struct ra_ctx_fns ra_ctx_android;
 
 /* Direct3D 11 */
 extern const struct ra_ctx_fns ra_ctx_d3d11;
-
-/* No API */
-#if HAVE_WAYLAND
-extern const struct ra_ctx_fns ra_ctx_wldmabuf;
-#endif
 
 static const struct ra_ctx_fns *contexts[] = {
 #if HAVE_D3D11
@@ -76,9 +70,6 @@ static const struct ra_ctx_fns *contexts[] = {
 #if HAVE_GL_DXINTEROP
     &ra_ctx_dxgl,
 #endif
-#if HAVE_GL_WAYLAND
-    &ra_ctx_wayland_egl,
-#endif
 #if HAVE_EGL_X11
     &ra_ctx_x11_egl,
 #endif
@@ -87,11 +78,6 @@ static const struct ra_ctx_fns *contexts[] = {
 #endif
 #if HAVE_EGL_DRM
     &ra_ctx_drm_egl,
-#endif
-
-/* No API contexts: */
-#if HAVE_WAYLAND
-    &ra_ctx_wldmabuf,
 #endif
 };
 
@@ -155,8 +141,8 @@ struct ra_ctx *ra_ctx_create(struct vo *vo, struct ra_ctx_opts opts)
         opts.probing = true;
     }
 
-    // Hack to silence backend (X11/Wayland/etc.) errors. Kill it once backends
-    // are separate from `struct vo`
+    // Hack to silence backend errors. Kill it once backends are separate
+    // from `struct vo`
     bool old_probing = vo->probing;
     vo->probing = opts.probing;
 

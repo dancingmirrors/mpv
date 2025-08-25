@@ -21,8 +21,8 @@ enum gles_mode ra_gl_ctx_get_glesmode(struct ra_ctx *ctx);
 // clean them up)
 
 struct ra_gl_ctx_params {
-    // For special contexts (i.e. wayland) that want to check visibility
-    // before drawing a frame.
+    // For special contexts that want to check visibility before drawing a
+    // frame.
     bool (*check_visible)(struct ra_ctx *ctx);
 
     // Set to the platform-specific function to swap buffers, like

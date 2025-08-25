@@ -237,13 +237,6 @@ typedef enum mpv_render_param_type {
      */
     MPV_RENDER_PARAM_X11_DISPLAY = 8,
     /**
-     * Wayland display, sometimes used for hwdec. Valid for
-     * mpv_render_context_create(). The wl_display must stay valid for the
-     * lifetime of the mpv_render_context.
-     * Type: struct wl_display*
-     */
-    MPV_RENDER_PARAM_WL_DISPLAY = 9,
-    /**
      * Better control about rendering and enabling some advanced features. Valid
      * for mpv_render_context_create().
      *

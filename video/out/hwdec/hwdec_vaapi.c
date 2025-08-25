@@ -45,17 +45,6 @@ static VADisplay *create_x11_va_display(struct ra *ra)
 }
 #endif
 
-#if HAVE_VAAPI_WAYLAND
-#include <va/va_wayland.h>
-
-static VADisplay *create_wayland_va_display(struct ra *ra)
-{
-    struct wl_display *wl = ra_get_native_resource(ra, "wl");
-
-    return wl ? vaGetDisplayWl(wl) : NULL;
-}
-#endif
-
 #if HAVE_VAAPI_DRM
 #include <va/va_drm.h>
 
@@ -77,9 +66,6 @@ struct va_create_native {
 static const struct va_create_native create_native_cbs[] = {
 #if HAVE_VAAPI_X11
     {"x11",     create_x11_va_display},
-#endif
-#if HAVE_VAAPI_WAYLAND
-    {"wayland", create_wayland_va_display},
 #endif
 #if HAVE_VAAPI_DRM
     {"drm",     create_drm_va_display},
@@ -126,9 +112,6 @@ static void uninit(struct ra_hwdec *hw)
 const static dmabuf_interop_init interop_inits[] = {
 #if HAVE_DMABUF
     dmabuf_interop_gl_init,
-#if HAVE_WAYLAND
-    dmabuf_interop_wl_init,
-#endif
 #endif
     NULL
 };
